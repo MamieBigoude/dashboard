@@ -348,6 +348,7 @@
         <!-- ═══ PAGE: VUE D'ENSEMBLE ═══ -->
         <div class="page-view active" id="page-overview">
             <div class="page-header"><div class="header-row"><div><h2>Vue d'ensemble</h2><p>Comptoir Mamie Bigoude &bull; Pilotage des campagnes</p></div><div><button class="btn btn-outline" onclick="location.reload()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>Actualiser</button></div></div></div>
+            <div class="filter-chips" id="overviewFilter" style="margin-bottom:16px"></div>
             <div class="kpi-grid" id="overviewKpis"></div>
             <div class="grid-1-1">
                 <div class="card"><div class="card-header"><div><div class="card-title">D&eacute;penses mensuelles</div><div class="card-subtitle">Meta + Google &mdash; National</div></div><div class="chart-legend"><div class="legend-item"><span class="legend-dot" style="background:#1877f2"></span>Meta</div><div class="legend-item"><span class="legend-dot" style="background:#d32f2f"></span>Google</div></div></div><div class="chart-container"><canvas id="overviewSpendChart"></canvas></div></div>
@@ -645,38 +646,96 @@ function cityHasGoogle(city) { return allGoogleResto[city] && allGoogleResto[cit
 // ══════════════════════════════════════════
 // RENDER: OVERVIEW
 // ══════════════════════════════════════════
+let overviewFilter = 'all'; // 'all', 'national', or city name
+
+function setOverviewFilter(val) {
+    overviewFilter = val;
+    renderOverviewFilterChips();
+    renderOverview();
+}
+
+function renderOverviewFilterChips() {
+    const cities = getAllRestoCities();
+    const el = document.getElementById('overviewFilter');
+    let html = `<button class="filter-chip${overviewFilter==='all'?' active':''}" onclick="setOverviewFilter('all')">Tous</button>`;
+    html += `<button class="filter-chip${overviewFilter==='national'?' active':''}" onclick="setOverviewFilter('national')">National</button>`;
+    cities.forEach(c => {
+        html += `<button class="filter-chip${overviewFilter===c?' active':''}" onclick="setOverviewFilter('${c}')">${c}</button>`;
+    });
+    el.innerHTML = html;
+}
+
 function renderOverview() {
     const mk=getCurMonth(); if(!mk)return;
     const pk=getPrevMonth();
-    const natM=getMonthData(allMetaNat,mk), natMp=pk?getMonthData(allMetaNat,pk):[];
-    const gM=getMonthData(allGoogle,mk), gMp=pk?getMonthData(allGoogle,pk):[];
+    const f = overviewFilter;
+
+    // Render filter chips on first load
+    if (!document.getElementById('overviewFilter').innerHTML) renderOverviewFilterChips();
+
+    // ── Compute data based on filter ──
+    let totalSpend=0, prevTotalSpend=0, totalImp=0, prevImp=0, kpiSub='';
+    let webSess=0, prevWebSess=0, webUsers=0;
+    let gConv=0, prevConv=0, gCost=0;
+
     const wM=allGA4.filter(r=>mKey(r.dt)===mk), wMp=pk?allGA4.filter(r=>mKey(r.dt)===pk):[];
 
-    const totalMetaSpend=sum(natM,'cost');const totalGoogleSpend=sum(gM,'cost');
-    let totalRestoMetaSpend=0;Object.keys(allMetaResto).forEach(c=>{totalRestoMetaSpend+=sum(getMonthData(allMetaResto[c],mk),'cost')});
-    let totalRestoGoogleSpend=0;Object.keys(allGoogleResto).forEach(c=>{totalRestoGoogleSpend+=sum(getMonthData(allGoogleResto[c],mk),'cost')});
-    const totalSpend=totalMetaSpend+totalGoogleSpend+totalRestoMetaSpend+totalRestoGoogleSpend;
-    const prevRestoMeta=pk?Object.keys(allMetaResto).reduce((a,c)=>a+sum(getMonthData(allMetaResto[c],pk),'cost'),0):0;
-    const prevRestoGoogle=pk?Object.keys(allGoogleResto).reduce((a,c)=>a+sum(getMonthData(allGoogleResto[c],pk),'cost'),0):0;
-    const prevTotalSpend=pk?(sum(natMp,'cost')+sum(gMp,'cost')+prevRestoMeta+prevRestoGoogle):0;
+    if (f === 'all') {
+        // All: national + all restaurants
+        const natM=getMonthData(allMetaNat,mk), natMp=pk?getMonthData(allMetaNat,pk):[];
+        const gM=getMonthData(allGoogle,mk), gMp=pk?getMonthData(allGoogle,pk):[];
+        let restoMeta=0; Object.keys(allMetaResto).forEach(c=>{restoMeta+=sum(getMonthData(allMetaResto[c],mk),'cost')});
+        let restoGoogle=0; Object.keys(allGoogleResto).forEach(c=>{restoGoogle+=sum(getMonthData(allGoogleResto[c],mk),'cost')});
+        totalSpend=sum(natM,'cost')+sum(gM,'cost')+restoMeta+restoGoogle;
+        const prevRM=pk?Object.keys(allMetaResto).reduce((a,c)=>a+sum(getMonthData(allMetaResto[c],pk),'cost'),0):0;
+        const prevRG=pk?Object.keys(allGoogleResto).reduce((a,c)=>a+sum(getMonthData(allGoogleResto[c],pk),'cost'),0):0;
+        prevTotalSpend=pk?(sum(natMp,'cost')+sum(gMp,'cost')+prevRM+prevRG):0;
+        totalImp=sum(natM,'imp')+sum(gM,'imp'); prevImp=pk?sum(natMp,'imp')+sum(gMp,'imp'):0;
+        gConv=sum(gM,'conv'); prevConv=pk?sum(gMp,'conv'):0; gCost=sum(gM,'cost');
+        kpiSub='National + Restaurants';
+    } else if (f === 'national') {
+        // National only
+        const natM=getMonthData(allMetaNat,mk), natMp=pk?getMonthData(allMetaNat,pk):[];
+        const gM=getMonthData(allGoogle,mk), gMp=pk?getMonthData(allGoogle,pk):[];
+        totalSpend=sum(natM,'cost')+sum(gM,'cost');
+        prevTotalSpend=pk?(sum(natMp,'cost')+sum(gMp,'cost')):0;
+        totalImp=sum(natM,'imp')+sum(gM,'imp'); prevImp=pk?sum(natMp,'imp')+sum(gMp,'imp'):0;
+        gConv=sum(gM,'conv'); prevConv=pk?sum(gMp,'conv'):0; gCost=sum(gM,'cost');
+        kpiSub='National uniquement';
+    } else {
+        // Specific restaurant
+        const rm=getMonthData(allMetaResto[f]||[],mk), rmp=pk?getMonthData(allMetaResto[f]||[],pk):[];
+        const rgm=getMonthData(allGoogleResto[f]||[],mk), rgmp=pk?getMonthData(allGoogleResto[f]||[],pk):[];
+        totalSpend=sum(rm,'cost')+sum(rgm,'cost');
+        prevTotalSpend=pk?(sum(rmp,'cost')+sum(rgmp,'cost')):0;
+        totalImp=sum(rm,'imp')+sum(rgm,'imp'); prevImp=pk?sum(rmp,'imp')+sum(rgmp,'imp'):0;
+        gConv=sum(rgm,'conv'); prevConv=pk?sum(rgmp,'conv'):0; gCost=sum(rgm,'cost');
+        kpiSub=f;
+    }
 
-    const totalImp=sum(natM,'imp')+sum(gM,'imp');const prevImp=pk?sum(natMp,'imp')+sum(gMp,'imp'):0;
-    const webSess=sum(wM,'sessions');const prevWebSess=pk?sum(wMp,'sessions'):0;
-    const gConv=sum(gM,'conv');const prevConv=pk?sum(gMp,'conv'):0;
+    webSess=sum(wM,'sessions'); prevWebSess=pk?sum(wMp,'sessions'):0; webUsers=sum(wM,'users');
 
     document.getElementById('overviewKpis').innerHTML=kpiHTML([
-        {label:'Dépenses totales',value:fE(totalSpend),sub:'National + Restaurants',icon:'rose',svg:SVG.spend,trend:trend(totalSpend,prevTotalSpend)},
-        {label:'Impressions',value:fN(totalImp),sub:'Meta + Google (National)',icon:'gold',svg:SVG.eye,trend:trend(totalImp,prevImp)},
-        {label:'Visites site web',value:fN(webSess),sub:fN(sum(wM,'users'))+' utilisateurs',icon:'web-i',svg:SVG.globe,trend:trend(webSess,prevWebSess)},
-        {label:'Conversions Google',value:fN(gConv),sub:gConv>0?'CPL: '+fE2(sum(gM,'cost')/gConv):'-',icon:'google-i',svg:SVG.users,trend:trend(gConv,prevConv)}
+        {label:'Dépenses totales',value:fE(totalSpend),sub:kpiSub,icon:'rose',svg:SVG.spend,trend:trend(totalSpend,prevTotalSpend)},
+        {label:'Impressions',value:fN(totalImp),sub:'Meta + Google',icon:'gold',svg:SVG.eye,trend:trend(totalImp,prevImp)},
+        {label:'Visites site web',value:fN(webSess),sub:fN(webUsers)+' utilisateurs',icon:'web-i',svg:SVG.globe,trend:trend(webSess,prevWebSess)},
+        {label:'Conversions Google',value:fN(gConv),sub:gConv>0?'CPL: '+fE2(gCost/gConv):'-',icon:'google-i',svg:SVG.users,trend:trend(gConv,prevConv)}
     ]);
 
-    // Spend chart
-    const natMG=grpMonth(allMetaNat), gMG=grpMonth(allGoogle);
-    makeChart('overviewSpendChart','bar',allMonthKeys.map(mLabel),[
-        {label:'Meta',data:allMonthKeys.map(k=>sum(natMG[k]||[],'cost')),backgroundColor:'rgba(24,119,242,.8)',borderRadius:6,borderSkipped:false},
-        {label:'Google',data:allMonthKeys.map(k=>sum(gMG[k]||[],'cost')),backgroundColor:'rgba(211,47,47,.7)',borderRadius:6,borderSkipped:false}
-    ],{y:{ticks:{callback:v=>fE(v)}}});
+    // Spend chart — adapt to filter
+    if (f === 'all' || f === 'national') {
+        const natMG=grpMonth(allMetaNat), gMG=grpMonth(allGoogle);
+        makeChart('overviewSpendChart','bar',allMonthKeys.map(mLabel),[
+            {label:'Meta',data:allMonthKeys.map(k=>sum(natMG[k]||[],'cost')),backgroundColor:'rgba(24,119,242,.8)',borderRadius:6,borderSkipped:false},
+            {label:'Google',data:allMonthKeys.map(k=>sum(gMG[k]||[],'cost')),backgroundColor:'rgba(211,47,47,.7)',borderRadius:6,borderSkipped:false}
+        ],{y:{ticks:{callback:v=>fE(v)}}});
+    } else {
+        const rMG=grpMonth(allMetaResto[f]||[]), rGMG=grpMonth(allGoogleResto[f]||[]);
+        makeChart('overviewSpendChart','bar',allMonthKeys.map(mLabel),[
+            {label:'Meta',data:allMonthKeys.map(k=>sum(rMG[k]||[],'cost')),backgroundColor:'rgba(24,119,242,.8)',borderRadius:6,borderSkipped:false},
+            {label:'Google',data:allMonthKeys.map(k=>sum(rGMG[k]||[],'cost')),backgroundColor:'rgba(211,47,47,.7)',borderRadius:6,borderSkipped:false}
+        ],{y:{ticks:{callback:v=>fE(v)}}});
+    }
 
     // Web chart
     const wMG={};allGA4.forEach(r=>{const k=mKey(r.dt);if(k){if(!wMG[k])wMG[k]={sessions:0,users:0};wMG[k].sessions+=r.sessions;wMG[k].users+=r.users}});
