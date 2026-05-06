@@ -426,7 +426,8 @@ const URLS = {
     google:   PUB_BASE + '1713978084',
     ga4:      PUB_BASE + '17155295',
     nimes:    PUB_BASE + '1180339242',
-    bourges:  PUB_BASE + '1619662920'
+    bourges:  PUB_BASE + '1619662920',
+    saintmalo: PUB_BASE + '910601949'
 };
 
 Chart.defaults.font.family = "'Plus Jakarta Sans','Inter',sans-serif";
@@ -1024,7 +1025,7 @@ function renderAll(){renderOverview();renderNational();renderRestaurants();rende
 // ══════════════════════════════════════════
 async function init() {
     const st=document.getElementById('dataStatus');
-    let fbOk=false,gOk=false,gaOk=false,nimOk=false,bourOk=false;
+    let fbOk=false,gOk=false,gaOk=false,nimOk=false,bourOk=false,smOk=false;
 
     try {
         // 1. France FB
@@ -1094,6 +1095,19 @@ async function init() {
             });
             bourOk=true;
         } catch(e){console.error('Bourges:',e)}
+
+        // 6. Saint-Malo
+        try {
+            console.log('Fetching Saint-Malo...');
+            const raw=await fetchCSV(URLS.saintmalo);
+            console.log('Saint-Malo rows:',raw.length);
+            raw.forEach(r=>{
+                const row=mapMetaRow(r);if(!row.dt)return;
+                if(!allMetaResto['Saint-Malo'])allMetaResto['Saint-Malo']=[];
+                allMetaResto['Saint-Malo'].push(row);
+            });
+            smOk=true;
+        } catch(e){console.error('Saint-Malo:',e)}
 
         // Compute month keys
         const allDates=[...allMetaNat,...allGoogle,...allGA4,...Object.values(allMetaResto).flat(),...Object.values(allGoogleResto).flat()].map(r=>mKey(r.dt)).filter(Boolean);
