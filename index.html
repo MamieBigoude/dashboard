@@ -429,7 +429,8 @@ const URLS = {
     ga4:      PUB_BASE + '17155295',
     nimes:    PUB_BASE + '1180339242',
     bourges:  PUB_BASE + '1619662920',
-    saintmalo: PUB_BASE + '910601949'
+    saintmalo: PUB_BASE + '910601949',
+    chateauroux: PUB_BASE + '1269997890'
 };
 
 Chart.defaults.font.family = "'Plus Jakarta Sans','Inter',sans-serif";
@@ -464,7 +465,8 @@ const CITY_MAP = {
     '#A#': 'Angers', '#L#': 'Limoges', '#M#': 'Montluçon',
     'Amboise': 'Amboise', 'Blois': 'Blois', 'Orléans': 'Orléans',
     'Tours': 'Tours', 'Poitiers': 'Poitiers', 'Montluçon': 'Montluçon',
-    'Bourges': 'Bourges', 'BOURGES': 'Bourges'
+    'Bourges': 'Bourges', 'BOURGES': 'Bourges',
+    'Châteauroux': 'Châteauroux', 'CHATEAUROUX': 'Châteauroux', 'Chateauroux': 'Châteauroux'
 };
 
 function classifyCampaign(name) {
@@ -1110,6 +1112,18 @@ async function init() {
             });
             smOk=true;
         } catch(e){console.error('Saint-Malo:',e)}
+
+        // 7. Châteauroux
+        try {
+            console.log('Fetching Châteauroux...');
+            const raw=await fetchCSV(URLS.chateauroux);
+            console.log('Châteauroux rows:',raw.length);
+            raw.forEach(r=>{
+                const row=mapMetaRow(r);if(!row.dt)return;
+                if(!allMetaResto['Châteauroux'])allMetaResto['Châteauroux']=[];
+                allMetaResto['Châteauroux'].push(row);
+            });
+        } catch(e){console.error('Châteauroux:',e)}
 
         // Compute month keys
         const allDates=[...allMetaNat,...allGoogle,...allGA4,...Object.values(allMetaResto).flat(),...Object.values(allGoogleResto).flat()].map(r=>mKey(r.dt)).filter(Boolean);
